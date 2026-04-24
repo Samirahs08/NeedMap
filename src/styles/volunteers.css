@@ -1,0 +1,211 @@
+/* ═══ Volunteer Management ═══ */
+
+/* Summary Cards */
+.vol-summary-row { display:grid; grid-template-columns:repeat(3,1fr); gap:16px; margin-bottom:20px; }
+.vol-summary-card {
+  display:flex; align-items:center; gap:14px; padding:18px 20px; border-radius:14px;
+  background:var(--card-bg); border:1px solid var(--card-border); transition:all .3s;
+}
+.vol-summary-card:hover { border-color:var(--card-hover-border); transform:translateY(-2px); }
+.vol-summary-icon { width:44px; height:44px; border-radius:12px; display:flex; align-items:center; justify-content:center; }
+.vol-summary-icon--total { background:rgba(59,130,246,0.12); color:#3b82f6; }
+.vol-summary-icon--available { background:rgba(34,197,94,0.12); color:#22c55e; }
+.vol-summary-icon--rest { background:rgba(100,116,139,0.15); color:#94a3b8; }
+.vol-summary-val { font-family:'Plus Jakarta Sans',sans-serif; font-size:1.6rem; font-weight:800; color:#fff; }
+.vol-summary-label { font-size:0.75rem; color:var(--text-muted); }
+
+/* Grid */
+.vol-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:16px; }
+@media(max-width:1100px) { .vol-grid { grid-template-columns:repeat(2,1fr); } }
+@media(max-width:700px) { .vol-grid { grid-template-columns:1fr; } }
+
+/* Card */
+.vol-card {
+  background:var(--card-bg); border:1px solid var(--card-border); border-radius:16px;
+  padding:18px; transition:all .3s; display:flex; flex-direction:column; gap:12px;
+}
+.vol-card:hover { border-color:var(--card-hover-border); transform:translateY(-3px); box-shadow:0 8px 32px rgba(0,0,0,0.25); }
+.vol-card-top { display:flex; align-items:center; gap:10px; }
+.vol-card-avatar {
+  width:42px; height:42px; border-radius:12px; display:flex; align-items:center; justify-content:center;
+  font-weight:700; font-size:0.85rem; flex-shrink:0;
+}
+.vol-card-info { flex:1; min-width:0; }
+.vol-card-name { font-weight:600; font-size:0.88rem; color:#fff; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.vol-card-status {
+  display:inline-block; padding:2px 8px; border-radius:6px; font-size:0.65rem;
+  font-weight:600; border:1px solid; margin-top:3px;
+}
+.vol-card-match {
+  font-family:'Plus Jakarta Sans',sans-serif; font-weight:800; font-size:1.1rem; color:#22c55e; flex-shrink:0;
+}
+.vol-card-skills { display:flex; gap:4px; flex-wrap:wrap; }
+.vol-card-more { font-size:0.62rem; color:var(--text-muted); padding:2px 6px; }
+.vol-card-meta { display:flex; gap:12px; font-size:0.72rem; color:var(--text-muted); }
+.vol-card-meta span { display:flex; align-items:center; gap:3px; }
+.vol-card-hours-header { display:flex; justify-content:space-between; font-size:0.7rem; color:var(--text-muted); margin-bottom:4px; }
+.vol-card-hours-bar { height:4px; background:rgba(255,255,255,0.06); border-radius:3px; overflow:hidden; }
+.vol-card-hours-bar div { height:100%; border-radius:3px; transition:width .4s; }
+.vol-card-stats { display:flex; justify-content:space-between; font-size:0.72rem; color:var(--text-muted); }
+.vol-card-stats div { display:flex; align-items:center; gap:4px; }
+.vol-card-stats b { color:var(--text-primary); }
+.vol-card-actions { display:flex; gap:8px; }
+.vol-card-btn {
+  flex:1; padding:7px; border-radius:9px; font-size:0.75rem; font-weight:600;
+  cursor:pointer; transition:all .2s; text-align:center; border:1px solid;
+}
+.vol-card-btn--profile { background:rgba(255,255,255,0.04); border-color:var(--card-border); color:var(--text-secondary); }
+.vol-card-btn--profile:hover { border-color:rgba(59,130,246,0.4); color:#3b82f6; background:rgba(59,130,246,0.06); }
+.vol-card-btn--assign { background:rgba(34,197,94,0.1); border-color:rgba(34,197,94,0.25); color:#22c55e; }
+.vol-card-btn--assign:hover { background:rgba(34,197,94,0.2); border-color:#22c55e; }
+
+/* Add Volunteer Modal */
+.add-vol-modal {
+  background:#111827; border:1px solid var(--card-border); border-radius:20px;
+  width:100%; max-width:620px; max-height:88vh; overflow-y:auto;
+  box-shadow:0 24px 64px rgba(0,0,0,0.6); position:relative;
+}
+.vol-multi-select { display:flex; flex-wrap:wrap; gap:5px; }
+.vol-chip {
+  display:inline-flex; align-items:center; gap:4px; padding:4px 10px; border-radius:8px;
+  font-size:0.72rem; font-weight:500; border:1px solid var(--card-border);
+  background:rgba(255,255,255,0.03); color:var(--text-muted); cursor:pointer; transition:all .15s;
+}
+.vol-chip:hover { border-color:rgba(255,255,255,0.15); }
+.vol-chip--active { background:rgba(34,197,94,0.1); border-color:rgba(34,197,94,0.3); color:#22c55e; }
+.vol-days-row { display:flex; gap:6px; }
+.vol-day-btn {
+  flex:1; padding:7px 4px; border-radius:8px; border:1px solid var(--card-border);
+  background:rgba(255,255,255,0.03); color:var(--text-muted); cursor:pointer;
+  font-size:0.75rem; font-weight:600; text-align:center; transition:all .15s;
+}
+.vol-day-btn:hover { border-color:rgba(255,255,255,0.15); }
+.vol-day-btn--active { background:rgba(34,197,94,0.12); border-color:rgba(34,197,94,0.3); color:#22c55e; }
+
+/* ═══ Volunteer Profile ═══ */
+.vol-back-link {
+  display:inline-flex; align-items:center; gap:5px; color:var(--text-muted); font-size:0.8rem;
+  text-decoration:none; margin-bottom:16px; transition:color .2s;
+}
+.vol-back-link:hover { color:#22c55e; }
+.vol-profile-header {
+  display:flex; align-items:center; gap:20px; padding:24px; border-radius:16px;
+  background:var(--card-bg); border:1px solid var(--card-border); margin-bottom:20px;
+}
+.vol-profile-avatar {
+  width:72px; height:72px; border-radius:18px; display:flex; align-items:center; justify-content:center;
+  font-weight:800; font-size:1.5rem; flex-shrink:0;
+}
+.vol-profile-info { flex:1; }
+.vol-profile-name { font-family:'Plus Jakarta Sans',sans-serif; font-weight:800; font-size:1.4rem; color:#fff; margin-bottom:8px; }
+.vol-profile-meta-row { display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin-bottom:8px; }
+.vol-profile-meta { display:flex; align-items:center; gap:4px; font-size:0.75rem; color:var(--text-muted); }
+.vol-profile-langs { display:flex; gap:5px; flex-wrap:wrap; }
+.vol-lang-tag {
+  display:inline-flex; align-items:center; gap:3px; padding:2px 8px; border-radius:6px;
+  font-size:0.68rem; background:rgba(59,130,246,0.08); color:#60a5fa; border:1px solid rgba(59,130,246,0.15);
+}
+.vol-profile-score { flex-shrink:0; }
+.vol-score-circle {
+  width:72px; height:72px; border-radius:50%; border:3px solid; display:flex;
+  flex-direction:column; align-items:center; justify-content:center;
+}
+.vol-score-num { font-family:'Plus Jakarta Sans',sans-serif; font-weight:800; font-size:1.3rem; color:#fff; line-height:1; }
+.vol-score-label { font-size:0.6rem; color:var(--text-muted); }
+
+/* Tabs */
+.vol-tabs {
+  display:flex; gap:4px; background:var(--card-bg); border:1px solid var(--card-border);
+  border-radius:12px; padding:4px; margin-bottom:20px;
+}
+.vol-tab {
+  flex:1; padding:10px; border-radius:9px; border:none; background:none; color:var(--text-muted);
+  font-size:0.8rem; font-weight:500; cursor:pointer; transition:all .2s; text-align:center;
+}
+.vol-tab:hover { color:var(--text-secondary); }
+.vol-tab--active { background:rgba(34,197,94,0.12); color:#22c55e; font-weight:600; }
+.vol-tab-content { min-height:300px; }
+
+/* Overview */
+.vol-overview-grid { display:grid; grid-template-columns:1fr 1fr; gap:16px; }
+@media(max-width:900px) { .vol-overview-grid { grid-template-columns:1fr; } }
+.vol-overview-card {
+  background:var(--card-bg); border:1px solid var(--card-border); border-radius:14px; padding:18px;
+}
+.vol-overview-card:last-child { grid-column:1/-1; }
+.vol-section-title { font-size:0.88rem; font-weight:700; color:#fff; margin-bottom:12px; }
+
+.vol-skills-list { display:flex; flex-direction:column; gap:6px; }
+.vol-skill-row { display:flex; justify-content:space-between; align-items:center; padding:6px 0; border-bottom:1px solid rgba(255,255,255,0.03); }
+.vol-skill-row:last-child { border-bottom:none; }
+.vol-skill-name { font-size:0.8rem; color:var(--text-primary); }
+.vol-prof-badge { font-size:0.65rem; padding:2px 8px; border-radius:5px; font-weight:600; }
+.vol-prof--basic { background:rgba(100,116,139,0.12); color:#94a3b8; }
+.vol-prof--trained { background:rgba(59,130,246,0.12); color:#60a5fa; }
+.vol-prof--expert { background:rgba(34,197,94,0.12); color:#22c55e; }
+
+.vol-perf-row { display:flex; align-items:center; gap:8px; margin-bottom:10px; }
+.vol-perf-label { font-size:0.75rem; color:var(--text-muted); width:110px; flex-shrink:0; }
+.vol-perf-bar { flex:1; height:6px; background:rgba(255,255,255,0.06); border-radius:4px; overflow:hidden; }
+.vol-perf-bar div { height:100%; border-radius:4px; transition:width .5s; }
+.vol-perf-val { font-size:0.72rem; font-weight:600; color:var(--text-secondary); width:36px; text-align:right; }
+
+.vol-detail-list { display:flex; flex-direction:column; gap:4px; }
+.vol-detail-item { display:flex; justify-content:space-between; padding:7px 0; border-bottom:1px solid rgba(255,255,255,0.03); font-size:0.8rem; }
+.vol-detail-item:last-child { border-bottom:none; }
+.vol-detail-item span:first-child { color:var(--text-muted); }
+.vol-detail-item span:last-child { color:var(--text-primary); font-weight:500; }
+
+/* History */
+.vol-history-summary {
+  display:flex; gap:20px; padding:14px 18px; border-radius:12px; margin-bottom:16px;
+  background:var(--card-bg); border:1px solid var(--card-border); font-size:0.82rem; color:var(--text-secondary);
+}
+.vol-history-summary b { color:#fff; }
+
+/* Availability */
+.vol-availability { display:flex; flex-direction:column; gap:16px; }
+.vol-calendar-grid { display:grid; grid-template-columns:repeat(7,1fr); gap:8px; }
+.vol-calendar-day {
+  padding:12px 8px; border-radius:10px; text-align:center;
+  background:rgba(255,255,255,0.02); border:1px solid var(--card-border);
+}
+.vol-calendar-day--active { background:rgba(34,197,94,0.06); border-color:rgba(34,197,94,0.2); }
+.vol-cal-day-name { display:block; font-size:0.78rem; font-weight:700; color:#fff; margin-bottom:4px; }
+.vol-cal-day-hours { display:block; font-size:0.65rem; color:var(--text-muted); }
+.vol-calendar-day--active .vol-cal-day-hours { color:#22c55e; }
+
+.vol-hours-display { text-align:center; }
+.vol-hours-big { margin-bottom:10px; }
+.vol-hours-num { font-family:'Plus Jakarta Sans',sans-serif; font-size:2.5rem; font-weight:800; }
+.vol-hours-sep { font-size:1.5rem; color:var(--text-muted); margin:0 4px; }
+.vol-hours-lim { font-size:1.2rem; color:var(--text-muted); }
+.vol-hours-bigbar { height:8px; background:rgba(255,255,255,0.06); border-radius:5px; overflow:hidden; max-width:400px; margin:0 auto; }
+.vol-hours-bigbar div { height:100%; border-radius:5px; transition:width .5s; }
+.vol-fatigue-alert {
+  display:flex; align-items:center; justify-content:center; gap:6px; padding:10px 16px;
+  border-radius:10px; font-size:0.78rem; margin-top:14px; max-width:500px; margin-left:auto; margin-right:auto;
+}
+.vol-fatigue--yellow { background:rgba(245,158,11,0.1); border:1px solid rgba(245,158,11,0.2); color:#f59e0b; }
+.vol-fatigue--red { background:rgba(239,68,68,0.1); border:1px solid rgba(239,68,68,0.2); color:#ef4444; }
+
+/* WhatsApp Log */
+.vol-wa-summary {
+  display:flex; align-items:center; gap:6px; padding:12px 16px; border-radius:10px;
+  background:rgba(37,211,102,0.06); border:1px solid rgba(37,211,102,0.15); color:#25d366;
+  font-size:0.82rem; margin-bottom:16px;
+}
+.vol-wa-summary b { color:#fff; }
+.vol-wa-timeline { display:flex; flex-direction:column; gap:16px; max-width:600px; }
+.vol-wa-item { display:flex; flex-direction:column; gap:6px; }
+.vol-wa-sent { display:flex; flex-direction:column; align-items:flex-end; }
+.vol-wa-reply { display:flex; flex-direction:column; align-items:flex-start; }
+.vol-wa-bubble {
+  max-width:80%; padding:10px 14px; border-radius:12px; font-size:0.78rem; line-height:1.5;
+  display:flex; align-items:flex-start; gap:6px;
+}
+.vol-wa-bubble--sent { background:rgba(37,211,102,0.1); border:1px solid rgba(37,211,102,0.2); color:var(--text-primary); border-bottom-right-radius:4px; }
+.vol-wa-bubble--sent svg { color:#25d366; flex-shrink:0; margin-top:2px; }
+.vol-wa-bubble--reply { background:rgba(255,255,255,0.04); border:1px solid var(--card-border); color:var(--text-secondary); border-bottom-left-radius:4px; }
+.vol-wa-time { font-size:0.65rem; color:var(--text-muted); margin-top:2px; }
+.vol-wa-no-reply { font-size:0.72rem; color:var(--text-muted); font-style:italic; padding-left:8px; }
