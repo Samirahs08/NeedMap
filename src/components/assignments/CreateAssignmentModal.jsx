@@ -1,23 +1,73 @@
-import { useState } from 'react'
-import { X, Search, Check, Send, ArrowRight, MapPin, AlertTriangle } from 'lucide-react'
-import { unassignedNeeds, matchedVolunteers } from '../../data/assignmentsData'
+import { useState, useEffect } from 'react'
+import { X, Search, Check, Send, ArrowRight, MapPin, AlertTriangle, Loader2 } from 'lucide-react'
+import { useAuth } from '../../context/AuthContext'
+import { fetchNeeds, fetchVolunteers, addAssignment } from '../../services/dataService'
 
 const urgencyColor = u => u > 80 ? '#ef4444' : u > 50 ? '#f97316' : '#22c55e'
 
 export default function CreateAssignmentModal({ onClose }) {
+  const { currentUser } = useAuth()
   const [step, setStep] = useState(1)
   const [selectedNeed, setSelectedNeed] = useState(null)
   const [selectedVol, setSelectedVol] = useState(null)
   const [note, setNote] = useState('')
   const [toast, setToast] = useState('')
   const [searchNeed, setSearchNeed] = useState('')
+  const [needs, setNeeds] = useState([])
+  const [volunteers, setVolunteers] = useState([])
+  const [loading, setLoading] = useState(true)
 
-  const filteredNeeds = unassignedNeeds.filter(n => n.title.toLowerCase().includes(searchNeed.toLowerCase()))
+  useEffect(() => {
+    if (!currentUser) return
+    Promise.all([
+      fetchNeeds(currentUser.uid),
+      fetchVolunteers(currentUser.uid)
+    ]).then(([n, v]) => {
+      setNeeds(n.filter(need => need.status !== 'Resolved'))
+      setVolunteers(v)
+      setLoading(false)
+    }).catch(() => setLoading(false))
+  }, [currentUser])
 
-  const handleConfirm = () => {
-    setToast(`WhatsApp notification sent to ${selectedVol.name}`)
-    setTimeout(() => { setToast(''); onClose() }, 2200)
+  const filteredNeeds = needs.filter(n => n.title.toLowerCase().includes(searchNeed.toLowerCase()))
+
+  // Compute matches
+  const matchedVolunteers = volunteers.map(v => {
+    // Simple mock logic for UI matching, normally this would be server side
+    let match = 50 + Math.floor(Math.random() * 40)
+    if (selectedNeed && v.homeZone === selectedNeed.zone) match += 10
+    return { ...v, matchPercent: Math.min(99, match), distance: v.distance || '2.0 km', availability: v.status === 'Available' ? 'Available now' : 'Busy' }
+  }).sort((a,b) => b.matchPercent - a.matchPercent).slice(0, 5)
+
+  const handleConfirm = async () => {
+    if (!currentUser || !selectedNeed || !selectedVol) return
+    try {
+      await addAssignment(currentUser.uid, {
+        need: selectedNeed.title,
+        urgency: selectedNeed.urgency > 80 ? 'CRITICAL' : selectedNeed.urgency > 50 ? 'HIGH' : 'MEDIUM',
+        volunteer: selectedVol.name,
+        volInitials: selectedVol.initials,
+        zone: selectedNeed.zone,
+        stage: 'notified',
+        skills: selectedVol.skills?.map(s => s.name || s) || [],
+        matchPercent: selectedVol.matchPercent,
+        distance: selectedVol.distance,
+        timeLabel: 'Just now'
+      })
+      setToast(`WhatsApp notification sent to ${selectedVol.name}`)
+      setTimeout(() => { setToast(''); onClose() }, 2200)
+    } catch (err) {
+      console.error(err)
+    }
   }
+
+  if (loading) return (
+    <div className="modal-overlay">
+      <div className="create-assign-modal" style={{display:'flex',justifyContent:'center',padding:40}}>
+        <Loader2 size={32} className="needs-spinner" style={{color:'var(--metric-green)'}}/>
+      </div>
+    </div>
+  )
 
   return (
     <div className="modal-overlay" onClick={onClose}>

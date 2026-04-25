@@ -4,9 +4,12 @@ import {
   MapPin, Eye, EyeOff, Check, AlertCircle, CheckCircle2,
   X, ArrowLeft,
 } from 'lucide-react'
+import { signInWithEmailAndPassword, createUserWithEmailAndPassword } from 'firebase/auth'
+import { doc, setDoc } from 'firebase/firestore'
+import { auth, db } from '../services/firebase'
 
 /* ─── tiny helpers ─────────────────────────────────────────────────────────── */
-const isValidEmail = (v) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v)
+const isValidEmail = (v) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v.trim())
 
 function passwordStrength(pw) {
   if (!pw) return { level: 0, label: '', color: '' }
@@ -134,10 +137,14 @@ function LoginForm({ onSuccess, onError }) {
     const e = validate()
     if (Object.keys(e).length) { setErrors(e); return }
     setLoading(true)
-    await new Promise(r => setTimeout(r, 1200))
-    setLoading(false)
-    // Demo: any credentials succeed
-    onSuccess()
+    try {
+      await signInWithEmailAndPassword(auth, form.email.trim(), form.password)
+      onSuccess()
+    } catch (err) {
+      onError(err.message.replace('Firebase: ', '') || 'Failed to login')
+    } finally {
+      setLoading(false)
+    }
   }
 
   return (
@@ -229,9 +236,23 @@ function RegisterForm({ onSuccess }) {
     const e = validate()
     if (Object.keys(e).length) { setErrors(e); return }
     setLoading(true)
-    await new Promise(r => setTimeout(r, 1500))
-    setLoading(false)
-    onSuccess()
+    try {
+      const userCredential = await createUserWithEmailAndPassword(auth, form.email.trim(), form.password)
+      await setDoc(doc(db, 'users', userCredential.user.uid), {
+        fullName: form.fullName,
+        ngoName: form.ngoName,
+        regNumber: form.regNumber,
+        email: form.email,
+        phone: form.phone,
+        cityState: form.cityState,
+        createdAt: new Date().toISOString()
+      })
+      onSuccess()
+    } catch (err) {
+      setErrors({ email: err.message.replace('Firebase: ', '') || 'Failed to register' })
+    } finally {
+      setLoading(false)
+    }
   }
 
   /* live confirm-password error */

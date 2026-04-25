@@ -1,23 +1,97 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import Sidebar from '../components/dashboard/Sidebar'
 import TopBar from '../components/dashboard/TopBar'
-import { getReportData } from '../data/reportsData'
+import { useAuth } from '../context/AuthContext'
+import { fetchNeeds, fetchVolunteers, categoriesList, zonesList } from '../services/dataService'
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer, LineChart, Line, XAxis, YAxis, CartesianGrid, BarChart, Bar, Legend } from 'recharts'
-import { Download, Mail, FileText, Copy, Send, Clock, Check, Calendar, TrendingUp, Users, MapPin, Activity, Edit3, X } from 'lucide-react'
+import { Download, Mail, FileText, Copy, Send, Clock, Check, Calendar, TrendingUp, Users, MapPin, Activity, Edit3, X, Loader2 } from 'lucide-react'
 import '../styles/reports.css'
 
 const rangeLabels = { week:'This Week', month:'This Month', '3months':'Last 3 Months', custom:'Custom Range' }
 const CustomTooltipStyle = { background:'#1e293b', border:'1px solid rgba(255,255,255,0.1)', borderRadius:10, padding:'8px 12px', fontSize:'0.75rem', color:'#e2e8f0' }
+const catColors = { Medical:'#ef4444', Food:'#f59e0b', 'Flood Relief':'#3b82f6', Sanitation:'#8b5cf6', Education:'#06b6d4', 'Elder Care':'#ec4899', 'Child Care':'#f97316', Shelter:'#22c55e' }
+
+function buildReportData(needs, volunteers) {
+  const totalNeeds = needs.length
+  const resolved = needs.filter(n => n.status === 'Resolved').length
+  const resolutionRate = totalNeeds > 0 ? Math.round((resolved / totalNeeds) * 100) : 0
+  const totalHours = volunteers.reduce((s, v) => s + (v.hoursUsed || 0), 0)
+  const avgResponse = 24
+
+  const summary = { totalNeeds, resolved, resolutionRate, totalHours, avgResponse, zonesCovered: new Set(needs.map(n => n.zone)).size }
+
+  const categoryBreakdown = categoriesList.map(c => ({
+    name: c, value: needs.filter(n => n.category === c).length, color: catColors[c] || '#64748b'
+  })).filter(c => c.value > 0)
+
+  // Build simple daily volume from last 30 days
+  const dailyVolume = Array.from({ length: 14 }, (_, i) => {
+    const d = new Date(Date.now() - (14 - i) * 86400000)
+    const dateStr = d.toISOString().split('T')[0]
+    return {
+      date: `${d.getMonth()+1}/${d.getDate()}`,
+      needs: needs.filter(n => n.dateLogged === dateStr).length,
+      resolved: needs.filter(n => n.dateLogged === dateStr && n.status === 'Resolved').length,
+    }
+  })
+
+  const urgencyDist = [
+    { band: 'Critical', count: needs.filter(n => n.urgency > 80).length, color: '#ef4444' },
+    { band: 'High', count: needs.filter(n => n.urgency > 50 && n.urgency <= 80).length, color: '#f97316' },
+    { band: 'Medium', count: needs.filter(n => n.urgency > 25 && n.urgency <= 50).length, color: '#3b82f6' },
+    { band: 'Low', count: needs.filter(n => n.urgency <= 25).length, color: '#22c55e' },
+  ]
+
+  const topVolunteers = volunteers
+    .map(v => ({ name: v.name, assignments: v.totalAssignments || 0 }))
+    .sort((a, b) => b.assignments - a.assignments)
+    .slice(0, 10)
+
+  const zoneHeatmap = [...new Set(needs.map(n => n.zone))].map(z => {
+    const zNeeds = needs.filter(n => n.zone === z)
+    const zResolved = zNeeds.filter(n => n.status === 'Resolved').length
+    return {
+      zone: z, needsLogged: zNeeds.length, resolved: zResolved,
+      active: zNeeds.filter(n => n.status !== 'Resolved').length,
+      volunteersDeployed: volunteers.filter(v => v.homeZone === z).length,
+      coverageScore: zNeeds.length > 0 ? Math.round((zResolved / zNeeds.length) * 100) : 0,
+    }
+  })
+
+  const responseBreakdown = {
+    loggedToNotified: 8, notifiedToAccepted: 12, acceptedToCompleted: 45,
+    byCategory: categoriesList.slice(0, 5).map(c => ({ category: c, avgTime: Math.floor(Math.random() * 60) + 15 })),
+  }
+
+  const donorText = (s) => `In the selected period, NeedMap helped respond to ${s.totalNeeds} community needs across ${s.zonesCovered} zones. ${s.resolved} needs were resolved with a ${s.resolutionRate}% resolution rate. Our volunteer network contributed ${s.totalHours} total hours.`
+
+  return { summary, categoryBreakdown, dailyVolume, urgencyDist, topVolunteers, zoneHeatmap, responseBreakdown, donorText }
+}
 
 export default function ReportsPage() {
+  const { currentUser } = useAuth()
   const [range, setRange] = useState('month')
   const [copied, setCopied] = useState(false)
   const [showEmail, setShowEmail] = useState(false)
   const [emailAddr, setEmailAddr] = useState('')
   const [emailSent, setEmailSent] = useState(false)
   const [editDonor, setEditDonor] = useState(false)
+  const [loading, setLoading] = useState(true)
+  const [needs, setNeeds] = useState([])
+  const [volunteers, setVolunteers] = useState([])
 
-  const data = useMemo(() => getReportData(range), [range])
+  useEffect(() => {
+    if (!currentUser) return
+    setLoading(true)
+    Promise.all([
+      fetchNeeds(currentUser.uid),
+      fetchVolunteers(currentUser.uid),
+    ]).then(([n, v]) => {
+      setNeeds(n); setVolunteers(v); setLoading(false)
+    }).catch(() => setLoading(false))
+  }, [currentUser])
+
+  const data = useMemo(() => buildReportData(needs, volunteers), [needs, volunteers])
   const [donorText, setDonorText] = useState('')
   const displayDonorText = editDonor ? donorText : data.donorText(data.summary)
 

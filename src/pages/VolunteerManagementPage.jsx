@@ -1,17 +1,21 @@
-import { useState, useMemo, useCallback } from 'react'
+import { useState, useMemo, useCallback, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import Sidebar from '../components/dashboard/Sidebar'
 import TopBar from '../components/dashboard/TopBar'
 import AddVolunteerModal from '../components/volunteers/AddVolunteerModal'
-import { allVolunteers, skillsList, zonesList, volunteerSummary } from '../data/volunteersData'
-import { Plus, Search, Users, UserCheck, Moon, MapPin, Clock, Award, ChevronDown } from 'lucide-react'
+import { useAuth } from '../context/AuthContext'
+import { fetchVolunteers, addVolunteer, zonesList } from '../services/dataService'
+import { Plus, Search, Users, UserCheck, Moon, MapPin, Clock, Award, Loader2, Info } from 'lucide-react'
 import '../styles/volunteers.css'
 
+const skillsList = ['Medical','First Aid','Counseling','Transport','Logistics','Food Distribution','Construction','Shelter','Water & Sanitation','Education','Child Care','Elder Care','Translation','Communication','Security']
 const statusColors = { Available:'#22c55e', Assigned:'#f59e0b', 'Rest Mode':'#64748b' }
 
 export default function VolunteerManagementPage() {
   const navigate = useNavigate()
-  const [volunteers, setVolunteers] = useState(allVolunteers)
+  const { currentUser } = useAuth()
+  const [volunteers, setVolunteers] = useState([])
+  const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
   const [filterStatus, setFilterStatus] = useState('')
   const [filterSkill, setFilterSkill] = useState('')
@@ -19,16 +23,25 @@ export default function VolunteerManagementPage() {
   const [sortBy, setSortBy] = useState('matchScore')
   const [showAddModal, setShowAddModal] = useState(false)
 
+  useEffect(() => {
+    if (!currentUser) return
+    setLoading(true)
+    fetchVolunteers(currentUser.uid).then(data => {
+      setVolunteers(data)
+      setLoading(false)
+    }).catch(() => setLoading(false))
+  }, [currentUser])
+
   const filtered = useMemo(() => {
     let list = [...volunteers]
-    if (search) { const q = search.toLowerCase(); list = list.filter(v => v.name.toLowerCase().includes(q) || v.phone.includes(q)) }
+    if (search) { const q = search.toLowerCase(); list = list.filter(v => v.name.toLowerCase().includes(q) || (v.phone && v.phone.includes(q))) }
     if (filterStatus) list = list.filter(v => v.status === filterStatus)
     if (filterSkill) list = list.filter(v => v.skills.some(s => s.name === filterSkill))
     if (filterZone) list = list.filter(v => v.homeZone === filterZone)
     list.sort((a, b) => {
-      if (sortBy === 'matchScore') return b.matchScore - a.matchScore
-      if (sortBy === 'hoursUsed') return b.hoursUsed - a.hoursUsed
-      if (sortBy === 'completedAssignments') return b.completedAssignments - a.completedAssignments
+      if (sortBy === 'matchScore') return (b.matchScore || 0) - (a.matchScore || 0)
+      if (sortBy === 'hoursUsed') return (b.hoursUsed || 0) - (a.hoursUsed || 0)
+      if (sortBy === 'completedAssignments') return (b.completedAssignments || 0) - (a.completedAssignments || 0)
       return 0
     })
     return list
@@ -40,11 +53,26 @@ export default function VolunteerManagementPage() {
     restMode: volunteers.filter(v => v.status === 'Rest Mode').length,
   }), [volunteers])
 
-  const handleAdd = useCallback((form) => {
-    const id = volunteers.length + 1
+  const handleAdd = useCallback(async (form) => {
+    if (!currentUser) return
     const initials = form.name.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2)
-    setVolunteers(prev => [{ id, name: form.name, initials, phone: form.phone, maskedPhone: form.phone.replace(/\d{3}(\d{2})$/, 'XX$1'), skills: form.skills.map(s => ({ name: s, level: 'Basic' })), homeZone: form.homeZone, languages: form.languages, status: 'Available', weeklyLimit: Number(form.weeklyLimit), hoursUsed: 0, totalAssignments: 0, completedAssignments: 0, completionRate: 0, joined: new Date().toISOString().split('T')[0], availabilityDays: form.availDays, availabilityHours: `${form.availHoursFrom} — ${form.availHoursTo}`, emergencyContact: '', coverageRadius: '5 km', distance: '—', performance: { score: 0, responseRate: 0, completionRate: 0, onTimeRate: 0, feedbackScore: 0 }, matchScore: 50, assignments: [], whatsappLog: [{ id: 1, timestamp: 'Just now', messageSent: `You have been registered as a volunteer with Hope Foundation. You will receive task notifications on this number. Reply STOP to opt out.`, reply: null, replyTime: null }], avgResponseTime: '—' }, ...prev])
-  }, [volunteers.length])
+    const volData = {
+      name: form.name, initials, phone: form.phone,
+      skills: form.skills.map(s => ({ name: s, level: 'Basic' })),
+      homeZone: form.homeZone, languages: form.languages,
+      status: 'Available', weeklyLimit: Number(form.weeklyLimit), hoursUsed: 0,
+      totalAssignments: 0, completedAssignments: 0, completionRate: 0,
+      joined: new Date().toISOString().split('T')[0],
+      availabilityDays: form.availDays,
+      availabilityHours: `${form.availHoursFrom} — ${form.availHoursTo}`,
+      coverageRadius: '5 km', distance: '—',
+      performance: { score: 0, responseRate: 0, completionRate: 0, onTimeRate: 0, feedbackScore: 0 },
+      matchScore: 50, assignments: [], whatsappLog: [], avgResponseTime: '—',
+    }
+    const created = await addVolunteer(currentUser.uid, volData)
+    setVolunteers(prev => [{ ...volData, ...created }, ...prev])
+    setShowAddModal(false)
+  }, [currentUser])
 
   return (
     <div className="dashboard-layout">
@@ -100,58 +128,80 @@ export default function VolunteerManagementPage() {
             </select>
           </div>
 
-          <p className="needs-results-count">Showing {filtered.length} of {volunteers.length} volunteers</p>
+          {/* Loading */}
+          {loading && (
+            <div className="needs-loading-state">
+              <Loader2 size={32} className="needs-spinner" />
+              <p>Loading volunteers…</p>
+            </div>
+          )}
+
+          {/* Empty */}
+          {!loading && volunteers.length === 0 && (
+            <div className="needs-empty-state">
+              <Info size={48} style={{color:'rgba(255,255,255,0.3)', marginBottom:12}} />
+              <h3>No volunteers registered</h3>
+              <p>Add your first volunteer using the button above.</p>
+            </div>
+          )}
 
           {/* Volunteer Grid */}
-          <div className="vol-grid">
-            {filtered.map(vol => {
-              const hoursPercent = Math.round((vol.hoursUsed / vol.weeklyLimit) * 100)
-              const hoursColor = hoursPercent >= 100 ? '#ef4444' : hoursPercent >= 80 ? '#f59e0b' : '#22c55e'
-              return (
-                <div key={vol.id} className="vol-card">
-                  <div className="vol-card-top">
-                    <div className="vol-card-avatar" style={{ background: `${statusColors[vol.status]}18`, color: statusColors[vol.status] }}>{vol.initials}</div>
-                    <div className="vol-card-info">
-                      <p className="vol-card-name">{vol.name}</p>
-                      <span className="vol-card-status" style={{ background: `${statusColors[vol.status]}18`, color: statusColors[vol.status], borderColor: `${statusColors[vol.status]}30` }}>{vol.status}</span>
+          {!loading && volunteers.length > 0 && (
+            <>
+              <p className="needs-results-count">Showing {filtered.length} of {volunteers.length} volunteers</p>
+              <div className="vol-grid">
+                {filtered.map(vol => {
+                  const hoursPercent = vol.weeklyLimit ? Math.round((vol.hoursUsed / vol.weeklyLimit) * 100) : 0
+                  const hoursColor = hoursPercent >= 100 ? '#ef4444' : hoursPercent >= 80 ? '#f59e0b' : '#22c55e'
+                  return (
+                    <div key={vol.id} className="vol-card">
+                      <div className="vol-card-top">
+                        <div className="vol-card-avatar" style={{ background: `${statusColors[vol.status]}18`, color: statusColors[vol.status] }}>{vol.initials}</div>
+                        <div className="vol-card-info">
+                          <p className="vol-card-name">
+                            {vol.name}
+                            {vol.isDemo && <span className="needs-demo-badge" style={{marginLeft:8}}>Demo</span>}
+                          </p>
+                          <span className="vol-card-status" style={{ background: `${statusColors[vol.status]}18`, color: statusColors[vol.status], borderColor: `${statusColors[vol.status]}30` }}>{vol.status}</span>
+                        </div>
+                        <span className="vol-card-match">{vol.matchScore || 0}%</span>
+                      </div>
+
+                      <div className="vol-card-skills">
+                        {vol.skills.slice(0, 3).map(s => <span key={s.name} className="volunteer-skill-tag">{s.name}</span>)}
+                        {vol.skills.length > 3 && <span className="vol-card-more">+{vol.skills.length - 3} more</span>}
+                      </div>
+
+                      <div className="vol-card-meta">
+                        <span><MapPin size={12}/> {vol.homeZone}</span>
+                        <span><Clock size={12}/> {vol.distance || '—'}</span>
+                      </div>
+
+                      <div className="vol-card-hours">
+                        <div className="vol-card-hours-header">
+                          <span>Weekly Hours</span>
+                          <span style={{ color: hoursColor }}>{vol.hoursUsed}/{vol.weeklyLimit}h</span>
+                        </div>
+                        <div className="vol-card-hours-bar">
+                          <div style={{ width: `${Math.min(hoursPercent, 100)}%`, background: hoursColor }} />
+                        </div>
+                      </div>
+
+                      <div className="vol-card-stats">
+                        <div><Award size={13}/> <b>{vol.totalAssignments}</b> missions</div>
+                        <div>{vol.completionRate}% completion</div>
+                      </div>
+
+                      <div className="vol-card-actions">
+                        <button className="vol-card-btn vol-card-btn--profile" onClick={() => navigate(`/volunteers/${vol.id}`)}>View Profile</button>
+                        <button className="vol-card-btn vol-card-btn--assign">Assign Now</button>
+                      </div>
                     </div>
-                    <span className="vol-card-match">{vol.matchScore}%</span>
-                  </div>
-
-                  <div className="vol-card-skills">
-                    {vol.skills.slice(0, 3).map(s => <span key={s.name} className="volunteer-skill-tag">{s.name}</span>)}
-                    {vol.skills.length > 3 && <span className="vol-card-more">+{vol.skills.length - 3} more</span>}
-                  </div>
-
-                  <div className="vol-card-meta">
-                    <span><MapPin size={12}/> {vol.homeZone}</span>
-                    <span><Clock size={12}/> {vol.distance}</span>
-                  </div>
-
-                  {/* Hours bar */}
-                  <div className="vol-card-hours">
-                    <div className="vol-card-hours-header">
-                      <span>Weekly Hours</span>
-                      <span style={{ color: hoursColor }}>{vol.hoursUsed}/{vol.weeklyLimit}h</span>
-                    </div>
-                    <div className="vol-card-hours-bar">
-                      <div style={{ width: `${Math.min(hoursPercent, 100)}%`, background: hoursColor }} />
-                    </div>
-                  </div>
-
-                  <div className="vol-card-stats">
-                    <div><Award size={13}/> <b>{vol.totalAssignments}</b> missions</div>
-                    <div>{vol.completionRate}% completion</div>
-                  </div>
-
-                  <div className="vol-card-actions">
-                    <button className="vol-card-btn vol-card-btn--profile" onClick={() => navigate(`/volunteers/${vol.id}`)}>View Profile</button>
-                    <button className="vol-card-btn vol-card-btn--assign">Assign Now</button>
-                  </div>
-                </div>
-              )
-            })}
-          </div>
+                  )
+                })}
+              </div>
+            </>
+          )}
         </div>
       </div>
       {showAddModal && <AddVolunteerModal onClose={() => setShowAddModal(false)} onSubmit={handleAdd}/>}

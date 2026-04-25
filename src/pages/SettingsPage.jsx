@@ -1,6 +1,7 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import Sidebar from '../components/dashboard/Sidebar'
 import TopBar from '../components/dashboard/TopBar'
+import { useAuth } from '../context/AuthContext'
 import { User, Bell, Shield, Palette, Globe, Database, Mail, Save, Check, ChevronRight, Moon, Sun, Smartphone, Key, Eye, EyeOff, ToggleLeft, ToggleRight } from 'lucide-react'
 import '../styles/settings.css'
 
@@ -14,14 +15,29 @@ const tabs = [
 ]
 
 export default function SettingsPage() {
+  const { currentUser, userData } = useAuth()
   const [activeTab, setActiveTab] = useState('profile')
   const [saved, setSaved] = useState(false)
   const [showPass, setShowPass] = useState(false)
 
   const [profile, setProfile] = useState({
-    name: 'Samira Khan', email: 'samira@hopefoundation.org', phone: '+91 98765 43210',
-    role: 'Coordinator', org: 'Hope Foundation', bio: 'Senior field coordinator managing volunteer operations across 9 zones.',
+    name: '', email: '', phone: '',
+    role: 'Admin', org: '', bio: '',
   })
+
+  // Populate from Firebase user data
+  useEffect(() => {
+    if (currentUser || userData) {
+      setProfile(prev => ({
+        ...prev,
+        name: userData?.fullName || currentUser?.displayName || 'Coordinator',
+        email: currentUser?.email || '',
+        org: userData?.ngoName || 'NeedMap',
+        phone: userData?.phone || '',
+        bio: userData?.bio || 'Field coordinator managing volunteer operations.',
+      }))
+    }
+  }, [currentUser, userData])
 
   const [notifs, setNotifs] = useState({
     email: true, push: true, sms: false, escalation: true, newNeed: true, volResponse: true, weeklyReport: true, dailyDigest: false,
@@ -62,7 +78,7 @@ export default function SettingsPage() {
                   <p className="settings-section-desc">Manage your account details and organization info</p>
 
                   <div className="settings-avatar-row">
-                    <div className="settings-avatar">SK</div>
+                    <div className="settings-avatar">NC</div>
                     <div>
                       <p className="settings-avatar-name">{profile.name}</p>
                       <p className="settings-avatar-role">{profile.role} · {profile.org}</p>

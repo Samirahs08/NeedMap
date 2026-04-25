@@ -1,6 +1,7 @@
-import { useEffect, useRef } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
+import { ChevronUp, ChevronDown, Maximize2, Minimize2 } from 'lucide-react'
 
 function getColor(urgency) {
   if (urgency > 80) return '#ef4444' // red
@@ -42,9 +43,12 @@ function createIcon(urgency) {
 export default function UrgencyMap({ needs, onAssignClick }) {
   const mapRef = useRef(null)
   const mapInstance = useRef(null)
+  const markersRef = useRef([])
+  const [collapsed, setCollapsed] = useState(false)
+  const [expanded, setExpanded] = useState(false)
 
   useEffect(() => {
-    if (mapInstance.current) return // already initialized
+    if (mapInstance.current || collapsed) return // already initialized or collapsed
 
     mapInstance.current = L.map(mapRef.current, {
       center: [19.076, 72.8777],
@@ -82,55 +86,94 @@ export default function UrgencyMap({ needs, onAssignClick }) {
     legend.addTo(mapInstance.current)
 
     return () => {
-      mapInstance.current.remove()
-      mapInstance.current = null
+      if (mapInstance.current) {
+        mapInstance.current.remove()
+        mapInstance.current = null
+      }
     }
-  }, [])
+  }, [collapsed])
+
+  // Invalidate map size when expanded/collapsed changes
+  useEffect(() => {
+    if (mapInstance.current) {
+      setTimeout(() => mapInstance.current.invalidateSize(), 100)
+    }
+  }, [expanded])
 
   // Add / update markers
   useEffect(() => {
     if (!mapInstance.current) return
 
-    const markers = []
+    // Clear old markers
+    markersRef.current.forEach((m) => m.remove())
+    markersRef.current = []
+
     needs.forEach((n) => {
       const marker = L.marker([n.lat, n.lng], { icon: createIcon(n.urgency) })
         .addTo(mapInstance.current)
 
-      marker.bindPopup(`
-        <div class="map-popup">
-          <h4 class="map-popup-title">${n.title}</h4>
-          <div class="map-popup-row"><span class="map-popup-label">Zone:</span> ${n.zone}</div>
-          <div class="map-popup-row"><span class="map-popup-label">Urgency:</span> <span style="color:${getColor(n.urgency)};font-weight:700">${n.urgency}/100 — ${getLabel(n.urgency)}</span></div>
-          <div class="map-popup-row"><span class="map-popup-label">Reports:</span> ${n.reports}</div>
-          <div class="map-popup-row"><span class="map-popup-label">Volunteers:</span> ${n.volunteersAssigned} assigned</div>
-          <button class="map-popup-btn" onclick="document.dispatchEvent(new CustomEvent('assign-from-map', {detail: ${n.id}}))">
-            Assign Volunteer
-          </button>
-        </div>`, { className: 'dark-popup' })
+      // Create popup with assign button
+      const popupContent = document.createElement('div')
+      popupContent.className = 'map-popup'
+      popupContent.innerHTML = `
+        <h4 class="map-popup-title">${n.title}</h4>
+        <div class="map-popup-row"><span class="map-popup-label">Zone:</span> ${n.zone}</div>
+        <div class="map-popup-row"><span class="map-popup-label">Urgency:</span> <span style="color:${getColor(n.urgency)};font-weight:700">${n.urgency}/100 — ${getLabel(n.urgency)}</span></div>
+        <div class="map-popup-row"><span class="map-popup-label">Reports:</span> ${n.reports}</div>
+        <div class="map-popup-row"><span class="map-popup-label">Volunteers:</span> ${n.volunteersAssigned} assigned</div>
+      `
+      const assignBtn = document.createElement('button')
+      assignBtn.className = 'map-popup-btn'
+      assignBtn.textContent = 'Assign Volunteer'
+      assignBtn.addEventListener('click', (e) => {
+        e.stopPropagation()
+        // Close the popup first so it doesn't block the modal
+        mapInstance.current.closePopup()
+        if (onAssignClick) onAssignClick(n)
+      })
+      popupContent.appendChild(assignBtn)
 
-      markers.push(marker)
+      marker.bindPopup(popupContent, { className: 'dark-popup' })
+      markersRef.current.push(marker)
     })
-
-    return () => markers.forEach((m) => m.remove())
-  }, [needs])
-
-  // Listen for assign clicks from popup
-  useEffect(() => {
-    function handler(e) {
-      const need = needs.find((n) => n.id === e.detail)
-      if (need && onAssignClick) onAssignClick(need)
-    }
-    document.addEventListener('assign-from-map', handler)
-    return () => document.removeEventListener('assign-from-map', handler)
   }, [needs, onAssignClick])
 
   return (
-    <div className="dashboard-card urgency-map-card" id="urgency-map">
+    <div className={`dashboard-card urgency-map-card ${expanded ? 'urgency-map-card--expanded' : ''}`} id="urgency-map">
       <div className="dashboard-card-header">
         <h2 className="dashboard-card-title">Live Urgency Map</h2>
-        <span className="dashboard-card-badge">{needs.length} active</span>
+        <div className="map-header-actions">
+          <span className="dashboard-card-badge">{needs.length} active</span>
+          <button
+            className="map-toggle-btn"
+            onClick={() => setExpanded(!expanded)}
+            title={expanded ? 'Minimize map' : 'Expand map'}
+          >
+            {expanded ? <Minimize2 size={14} /> : <Maximize2 size={14} />}
+          </button>
+          <button
+            className="map-toggle-btn"
+            onClick={() => {
+              setCollapsed(!collapsed)
+              if (!collapsed && mapInstance.current) {
+                mapInstance.current.remove()
+                mapInstance.current = null
+              }
+            }}
+            title={collapsed ? 'Show map' : 'Collapse map'}
+          >
+            {collapsed ? <ChevronDown size={14} /> : <ChevronUp size={14} />}
+          </button>
+        </div>
       </div>
-      <div className="urgency-map-container" ref={mapRef} />
+      {!collapsed && (
+        <div className={`urgency-map-container ${expanded ? 'urgency-map-container--expanded' : ''}`} ref={mapRef} />
+      )}
+      {collapsed && (
+        <div className="map-collapsed-placeholder">
+          Map collapsed — click <ChevronDown size={12} style={{display:'inline',verticalAlign:'middle'}} /> to expand
+        </div>
+      )}
     </div>
   )
 }

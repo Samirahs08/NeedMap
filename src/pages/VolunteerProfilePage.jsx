@@ -1,17 +1,38 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import Sidebar from '../components/dashboard/Sidebar'
 import TopBar from '../components/dashboard/TopBar'
-import { allVolunteers, daysList } from '../data/volunteersData'
-import { ArrowLeft, Phone, Globe, MapPin, Shield, Star, Clock, MessageCircle, AlertTriangle, CheckCircle2, Send } from 'lucide-react'
+import { useAuth } from '../context/AuthContext'
+import { fetchVolunteers } from '../services/dataService'
+import { ArrowLeft, Phone, Globe, MapPin, Shield, Star, Clock, MessageCircle, AlertTriangle, CheckCircle2, Send, Loader2 } from 'lucide-react'
 import '../styles/volunteers.css'
 
 const statusColors = { Available:'#22c55e', Assigned:'#f59e0b', 'Rest Mode':'#64748b' }
+const daysList = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun']
 
 export default function VolunteerProfilePage() {
   const { id } = useParams()
-  const vol = allVolunteers.find(v => v.id === Number(id))
+  const { currentUser } = useAuth()
+  const [vol, setVol] = useState(null)
+  const [loading, setLoading] = useState(true)
   const [tab, setTab] = useState('overview')
+
+  useEffect(() => {
+    if (!currentUser) return
+    fetchVolunteers(currentUser.uid).then(data => {
+      const found = data.find(v => v.id === id)
+      setVol(found || null)
+      setLoading(false)
+    }).catch(() => setLoading(false))
+  }, [currentUser, id])
+
+  if (loading) return (
+    <div className="dashboard-layout"><Sidebar/><div className="dashboard-main"><TopBar title="Volunteer Profile"/>
+      <div className="dashboard-content" style={{display:'flex',alignItems:'center',justifyContent:'center',minHeight:'60vh'}}>
+        <div style={{textAlign:'center',color:'rgba(255,255,255,0.5)'}}><Loader2 size={32} className="needs-spinner" /><p style={{marginTop:12,fontSize:14}}>Loading profile…</p></div>
+      </div>
+    </div></div>
+  )
 
   if (!vol) return (
     <div className="dashboard-layout"><Sidebar/><div className="dashboard-main"><TopBar title="Volunteer Profile"/>
@@ -19,9 +40,9 @@ export default function VolunteerProfilePage() {
     </div></div>
   )
 
-  const hoursPercent = Math.round((vol.hoursUsed / vol.weeklyLimit) * 100)
+  const hoursPercent = vol.weeklyLimit ? Math.round((vol.hoursUsed / vol.weeklyLimit) * 100) : 0
   const hoursColor = hoursPercent >= 100 ? '#ef4444' : hoursPercent >= 80 ? '#f59e0b' : '#22c55e'
-  const totalHours = vol.assignments.reduce((sum, a) => sum + parseInt(a.duration), 0)
+  const totalHours = (vol.assignments || []).reduce((sum, a) => sum + parseInt(a.duration || '0'), 0)
   const tabs = [
     { key: 'overview', label: 'Overview' },
     { key: 'history', label: 'Assignment History' },

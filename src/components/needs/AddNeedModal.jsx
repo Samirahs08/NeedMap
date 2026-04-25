@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { X } from 'lucide-react'
-import { categoriesList, zonesList } from '../../data/needsData'
+import { categoriesList, zonesList } from '../../services/dataService'
 
 const sourceOptions = ['Field Visit', 'Phone Call', 'Community Leader', 'Other']
 

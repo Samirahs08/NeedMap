@@ -1,10 +1,11 @@
-import { useState, useMemo, useCallback } from 'react'
+import { useState, useMemo, useCallback, useEffect } from 'react'
 import Sidebar from '../components/dashboard/Sidebar'
 import TopBar from '../components/dashboard/TopBar'
 import NeedDetailDrawer from '../components/needs/NeedDetailDrawer'
 import AddNeedModal from '../components/needs/AddNeedModal'
-import { allNeeds, categoriesList, zonesList, statusesList, summaryStats } from '../data/needsData'
-import { Plus, Search, X, ChevronUp, ChevronDown, ChevronLeft, ChevronRight, Eye, UserPlus, CheckCircle2, AlertCircle, Clock, Loader2, Archive } from 'lucide-react'
+import { useAuth } from '../context/AuthContext'
+import { fetchNeeds, addNeed, updateNeedStatus, categoriesList, zonesList, statusesList } from '../services/dataService'
+import { Plus, Search, X, ChevronUp, ChevronDown, ChevronLeft, ChevronRight, Eye, UserPlus, CheckCircle2, AlertCircle, Clock, Loader2, Archive, Info } from 'lucide-react'
 import '../styles/needs.css'
 
 const ROWS_PER_PAGE = 20
@@ -14,7 +15,9 @@ const statusClass = (s) => `needs-status-badge needs-status--${s.toLowerCase().r
 const catColors = { Medical:'#ef4444', Food:'#f59e0b', 'Flood Relief':'#3b82f6', Sanitation:'#8b5cf6', Education:'#06b6d4', 'Elder Care':'#ec4899', 'Child Care':'#f97316', Shelter:'#22c55e' }
 
 export default function NeedsManagementPage() {
-  const [needs, setNeeds] = useState(allNeeds)
+  const { currentUser } = useAuth()
+  const [needs, setNeeds] = useState([])
+  const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
   const [filterZone, setFilterZone] = useState('')
   const [filterCategory, setFilterCategory] = useState('')
@@ -28,6 +31,15 @@ export default function NeedsManagementPage() {
   const [selected, setSelected] = useState(new Set())
   const [drawerNeed, setDrawerNeed] = useState(null)
   const [showAddModal, setShowAddModal] = useState(false)
+
+  useEffect(() => {
+    if (!currentUser) return
+    setLoading(true)
+    fetchNeeds(currentUser.uid).then(data => {
+      setNeeds(data.sort((a, b) => b.urgency - a.urgency))
+      setLoading(false)
+    }).catch(() => setLoading(false))
+  }, [currentUser])
 
   const filtered = useMemo(() => {
     let list = [...needs]
@@ -66,15 +78,28 @@ export default function NeedsManagementPage() {
   const toggleSelect = (id) => setSelected(prev => { const s = new Set(prev); s.has(id) ? s.delete(id) : s.add(id); return s })
   const toggleAll = () => { if (selected.size === pageData.length) setSelected(new Set()); else setSelected(new Set(pageData.map(n => n.id))) }
 
-  const handleAddNeed = useCallback((newNeed) => {
-    const id = `N-${String(needs.length + 1).padStart(4, '0')}`
-    const urgency = Math.min(99, newNeed.severity * 12 + Math.floor(Math.random() * 20) + 10)
-    setNeeds(prev => [{ ...newNeed, id, urgency, reports: 1, volunteersAssigned: 0, volunteersNeeded: newNeed.volunteersNeeded || 2, status: 'Active', dateLogged: new Date().toISOString().split('T')[0], fieldReports: [], activityLog: [{ text: `Logged manually by coordinator`, time: 'Just now' }], severity: newNeed.severity, frequency: 1, recency: 5, coverage: 1 }, ...prev])
+  const handleAddNeed = useCallback(async (newNeed) => {
+    if (!currentUser) return
+    const created = await addNeed(currentUser.uid, newNeed)
+    setNeeds(prev => [{ ...newNeed, ...created, dateLogged: new Date().toISOString().split('T')[0], reports: 1, volunteersAssigned: 0, volunteersNeeded: newNeed.volunteersNeeded || 2, fieldReports: [], activityLog: [{ text: 'Logged manually by coordinator', time: 'Just now' }], severity: newNeed.severity, frequency: 1, recency: 5, coverage: 1 }, ...prev])
     setShowAddModal(false)
-  }, [needs.length])
+  }, [currentUser])
 
-  const handleResolve = useCallback((id) => { setNeeds(prev => prev.map(n => n.id === id ? { ...n, status: 'Resolved' } : n)); setDrawerNeed(null) }, [])
-  const bulkResolve = () => { setNeeds(prev => prev.map(n => selected.has(n.id) ? { ...n, status: 'Resolved' } : n)); setSelected(new Set()) }
+  const handleResolve = useCallback(async (id) => {
+    if (!currentUser) return
+    await updateNeedStatus(currentUser.uid, id, 'Resolved')
+    setNeeds(prev => prev.map(n => n.id === id ? { ...n, status: 'Resolved' } : n))
+    setDrawerNeed(null)
+  }, [currentUser])
+
+  const bulkResolve = async () => {
+    if (!currentUser) return
+    for (const id of selected) {
+      await updateNeedStatus(currentUser.uid, id, 'Resolved')
+    }
+    setNeeds(prev => prev.map(n => selected.has(n.id) ? { ...n, status: 'Resolved' } : n))
+    setSelected(new Set())
+  }
 
   const stats = useMemo(() => ({
     total: needs.length,
@@ -136,80 +161,105 @@ export default function NeedsManagementPage() {
             <button className="needs-clear-btn" onClick={clearFilters}><X size={13}/> Clear</button>
           </div>
 
-          <p className="needs-results-count">Showing {Math.min(filtered.length, ROWS_PER_PAGE)} of {filtered.length} needs</p>
-
-          {/* Bulk Actions */}
-          {selected.size > 0 && (
-            <div className="needs-bulk-bar">
-              <span>{selected.size} selected</span>
-              <button className="needs-bulk-btn" onClick={bulkResolve}><CheckCircle2 size={14}/> Mark as Resolved</button>
-              <button className="needs-bulk-btn"><Archive size={14}/> Export Selected</button>
-              <button className="needs-bulk-btn"><UserPlus size={14}/> Assign to Volunteer</button>
+          {/* Loading state */}
+          {loading && (
+            <div className="needs-loading-state">
+              <Loader2 size={32} className="needs-spinner" />
+              <p>Loading community needs…</p>
             </div>
           )}
 
-          {/* Table */}
-          <div className="needs-table-wrap">
-            <table className="needs-table">
-              <thead>
-                <tr>
-                  <th><input type="checkbox" checked={selected.size === pageData.length && pageData.length > 0} onChange={toggleAll}/></th>
-                  <th onClick={() => handleSort('id')}>ID <SortIcon col="id"/></th>
-                  <th onClick={() => handleSort('title')}>Need Title <SortIcon col="title"/></th>
-                  <th onClick={() => handleSort('category')}>Category <SortIcon col="category"/></th>
-                  <th onClick={() => handleSort('zone')}>Zone <SortIcon col="zone"/></th>
-                  <th onClick={() => handleSort('urgency')}>Urgency <SortIcon col="urgency"/></th>
-                  <th onClick={() => handleSort('reports')}>Reports <SortIcon col="reports"/></th>
-                  <th>Volunteers</th>
-                  <th onClick={() => handleSort('status')}>Status <SortIcon col="status"/></th>
-                  <th onClick={() => handleSort('dateLogged')}>Date <SortIcon col="dateLogged"/></th>
-                  <th>Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {pageData.map(n => (
-                  <tr key={n.id} className={selected.has(n.id) ? 'needs-row--selected' : ''} onClick={() => setDrawerNeed(n)}>
-                    <td onClick={e => e.stopPropagation()}><input type="checkbox" checked={selected.has(n.id)} onChange={() => toggleSelect(n.id)}/></td>
-                    <td className="needs-cell-id">#{n.id}</td>
-                    <td className="needs-cell-title">{n.title}</td>
-                    <td><span className="needs-cat-badge" style={{background:`${catColors[n.category] || '#64748b'}18`, color:catColors[n.category] || '#64748b', borderColor:`${catColors[n.category] || '#64748b'}30`}}>{n.category}</span></td>
-                    <td className="needs-cell-zone">{n.zone}</td>
-                    <td>
-                      <div className="needs-urgency-cell">
-                        <span style={{color:urgencyColor(n.urgency), fontWeight:700}}>{n.urgency}</span>
-                        <div className="needs-urgency-minibar"><div style={{width:`${n.urgency}%`, background:urgencyColor(n.urgency)}}/></div>
-                      </div>
-                    </td>
-                    <td className="needs-cell-center">{n.reports}</td>
-                    <td className="needs-cell-center">{n.volunteersAssigned}/{n.volunteersNeeded}</td>
-                    <td><span className={statusClass(n.status)}>{n.status}</span></td>
-                    <td className="needs-cell-date">{n.dateLogged}</td>
-                    <td onClick={e => e.stopPropagation()}>
-                      <div className="needs-actions">
-                        <button className="needs-action-btn" title="View" onClick={() => setDrawerNeed(n)}><Eye size={14}/></button>
-                        <button className="needs-action-btn" title="Assign"><UserPlus size={14}/></button>
-                        <button className="needs-action-btn needs-action-btn--resolve" title="Resolve" onClick={() => handleResolve(n.id)}><CheckCircle2 size={14}/></button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+          {/* Empty state */}
+          {!loading && needs.length === 0 && (
+            <div className="needs-empty-state">
+              <Info size={48} style={{color:'rgba(255,255,255,0.3)', marginBottom:12}} />
+              <h3>No data available</h3>
+              <p>Start by logging a community need using the button above.</p>
+            </div>
+          )}
 
-          {/* Pagination */}
-          <div className="needs-pagination">
-            <button className="needs-page-btn" disabled={page <= 1} onClick={() => setPage(p => p - 1)}><ChevronLeft size={15}/></button>
-            {Array.from({ length: Math.min(totalPages, 7) }, (_, i) => {
-              let p
-              if (totalPages <= 7) p = i + 1
-              else if (page <= 4) p = i + 1
-              else if (page >= totalPages - 3) p = totalPages - 6 + i
-              else p = page - 3 + i
-              return <button key={p} className={`needs-page-btn ${p === page ? 'needs-page-btn--active' : ''}`} onClick={() => setPage(p)}>{p}</button>
-            })}
-            <button className="needs-page-btn" disabled={page >= totalPages} onClick={() => setPage(p => p + 1)}><ChevronRight size={15}/></button>
-          </div>
+          {/* Data loaded */}
+          {!loading && needs.length > 0 && (
+            <>
+              <p className="needs-results-count">Showing {Math.min(filtered.length, ROWS_PER_PAGE)} of {filtered.length} needs</p>
+
+              {/* Bulk Actions */}
+              {selected.size > 0 && (
+                <div className="needs-bulk-bar">
+                  <span>{selected.size} selected</span>
+                  <button className="needs-bulk-btn" onClick={bulkResolve}><CheckCircle2 size={14}/> Mark as Resolved</button>
+                  <button className="needs-bulk-btn"><Archive size={14}/> Export Selected</button>
+                  <button className="needs-bulk-btn"><UserPlus size={14}/> Assign to Volunteer</button>
+                </div>
+              )}
+
+              {/* Table */}
+              <div className="needs-table-wrap">
+                <table className="needs-table">
+                  <thead>
+                    <tr>
+                      <th><input type="checkbox" checked={selected.size === pageData.length && pageData.length > 0} onChange={toggleAll}/></th>
+                      <th onClick={() => handleSort('id')}>ID <SortIcon col="id"/></th>
+                      <th onClick={() => handleSort('title')}>Need Title <SortIcon col="title"/></th>
+                      <th onClick={() => handleSort('category')}>Category <SortIcon col="category"/></th>
+                      <th onClick={() => handleSort('zone')}>Zone <SortIcon col="zone"/></th>
+                      <th onClick={() => handleSort('urgency')}>Urgency <SortIcon col="urgency"/></th>
+                      <th onClick={() => handleSort('reports')}>Reports <SortIcon col="reports"/></th>
+                      <th>Volunteers</th>
+                      <th onClick={() => handleSort('status')}>Status <SortIcon col="status"/></th>
+                      <th onClick={() => handleSort('dateLogged')}>Date <SortIcon col="dateLogged"/></th>
+                      <th>Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {pageData.map(n => (
+                      <tr key={n.id} className={selected.has(n.id) ? 'needs-row--selected' : ''} onClick={() => setDrawerNeed(n)}>
+                        <td onClick={e => e.stopPropagation()}><input type="checkbox" checked={selected.has(n.id)} onChange={() => toggleSelect(n.id)}/></td>
+                        <td className="needs-cell-id">
+                          #{typeof n.id === 'string' ? n.id.slice(0, 6) : n.id}
+                          {n.isDemo && <span className="needs-demo-badge">Demo</span>}
+                        </td>
+                        <td className="needs-cell-title">{n.title}</td>
+                        <td><span className="needs-cat-badge" style={{background:`${catColors[n.category] || '#64748b'}18`, color:catColors[n.category] || '#64748b', borderColor:`${catColors[n.category] || '#64748b'}30`}}>{n.category}</span></td>
+                        <td className="needs-cell-zone">{n.zone}</td>
+                        <td>
+                          <div className="needs-urgency-cell">
+                            <span style={{color:urgencyColor(n.urgency), fontWeight:700}}>{n.urgency}</span>
+                            <div className="needs-urgency-minibar"><div style={{width:`${n.urgency}%`, background:urgencyColor(n.urgency)}}/></div>
+                          </div>
+                        </td>
+                        <td className="needs-cell-center">{n.reports}</td>
+                        <td className="needs-cell-center">{n.volunteersAssigned}/{n.volunteersNeeded}</td>
+                        <td><span className={statusClass(n.status)}>{n.status}</span></td>
+                        <td className="needs-cell-date">{n.dateLogged}</td>
+                        <td onClick={e => e.stopPropagation()}>
+                          <div className="needs-actions">
+                            <button className="needs-action-btn" title="View" onClick={() => setDrawerNeed(n)}><Eye size={14}/></button>
+                            <button className="needs-action-btn" title="Assign"><UserPlus size={14}/></button>
+                            <button className="needs-action-btn needs-action-btn--resolve" title="Resolve" onClick={() => handleResolve(n.id)}><CheckCircle2 size={14}/></button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              {/* Pagination */}
+              <div className="needs-pagination">
+                <button className="needs-page-btn" disabled={page <= 1} onClick={() => setPage(p => p - 1)}><ChevronLeft size={15}/></button>
+                {Array.from({ length: Math.min(totalPages, 7) }, (_, i) => {
+                  let p
+                  if (totalPages <= 7) p = i + 1
+                  else if (page <= 4) p = i + 1
+                  else if (page >= totalPages - 3) p = totalPages - 6 + i
+                  else p = page - 3 + i
+                  return <button key={p} className={`needs-page-btn ${p === page ? 'needs-page-btn--active' : ''}`} onClick={() => setPage(p)}>{p}</button>
+                })}
+                <button className="needs-page-btn" disabled={page >= totalPages} onClick={() => setPage(p => p + 1)}><ChevronRight size={15}/></button>
+              </div>
+            </>
+          )}
         </div>
       </div>
 

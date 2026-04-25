@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { X, Check } from 'lucide-react'
-import { skillsList, languagesList, zonesList, daysList } from '../../data/volunteersData'
+import { skillsList, languagesList, zonesList, daysList } from '../../services/dataService'
 
 export default function AddVolunteerModal({ onClose, onSubmit }) {
   const [form, setForm] = useState({
