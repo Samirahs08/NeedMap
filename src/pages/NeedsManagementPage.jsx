@@ -3,6 +3,7 @@ import Sidebar from '../components/dashboard/Sidebar'
 import TopBar from '../components/dashboard/TopBar'
 import NeedDetailDrawer from '../components/needs/NeedDetailDrawer'
 import AddNeedModal from '../components/needs/AddNeedModal'
+import CreateAssignmentModal from '../components/assignments/CreateAssignmentModal'
 import { useAuth } from '../context/AuthContext'
 import { fetchNeeds, addNeed, updateNeedStatus, categoriesList, zonesList, statusesList } from '../services/dataService'
 import { Plus, Search, X, ChevronUp, ChevronDown, ChevronLeft, ChevronRight, Eye, UserPlus, CheckCircle2, AlertCircle, Clock, Loader2, Archive, Info } from 'lucide-react'
@@ -31,6 +32,7 @@ export default function NeedsManagementPage() {
   const [selected, setSelected] = useState(new Set())
   const [drawerNeed, setDrawerNeed] = useState(null)
   const [showAddModal, setShowAddModal] = useState(false)
+  const [assignNeed, setAssignNeed] = useState(null)
 
   useEffect(() => {
     if (!currentUser) return
@@ -80,15 +82,27 @@ export default function NeedsManagementPage() {
 
   const handleAddNeed = useCallback(async (newNeed) => {
     if (!currentUser) return
-    const created = await addNeed(currentUser.uid, newNeed)
-    setNeeds(prev => [{ ...newNeed, ...created, dateLogged: new Date().toISOString().split('T')[0], reports: 1, volunteersAssigned: 0, volunteersNeeded: newNeed.volunteersNeeded || 2, fieldReports: [], activityLog: [{ text: 'Logged manually by coordinator', time: 'Just now' }], severity: newNeed.severity, frequency: 1, recency: 5, coverage: 1 }, ...prev])
-    setShowAddModal(false)
+    try {
+      const created = await addNeed(currentUser.uid, newNeed)
+      setNeeds(prev => [{ ...newNeed, ...created, dateLogged: new Date().toISOString().split('T')[0], reports: 1, volunteersAssigned: 0, volunteersNeeded: newNeed.volunteersNeeded || 2, fieldReports: [], activityLog: [{ text: 'Logged manually by coordinator', time: 'Just now' }], severity: newNeed.severity, frequency: 1, recency: 5, coverage: 1 }, ...prev])
+      setShowAddModal(false)
+    } catch (err) {
+      console.error("Failed to add need:", err)
+      alert("Error saving to database. You might have hit your Firebase usage quota, or your internet is unstable. Check the browser console.")
+    }
   }, [currentUser])
 
   const handleResolve = useCallback(async (id) => {
     if (!currentUser) return
     await updateNeedStatus(currentUser.uid, id, 'Resolved')
     setNeeds(prev => prev.map(n => n.id === id ? { ...n, status: 'Resolved' } : n))
+    setDrawerNeed(null)
+  }, [currentUser])
+
+  const handleEscalate = useCallback(async (id) => {
+    if (!currentUser) return
+    await updateNeedStatus(currentUser.uid, id, 'Escalated')
+    setNeeds(prev => prev.map(n => n.id === id ? { ...n, status: 'Escalated' } : n))
     setDrawerNeed(null)
   }, [currentUser])
 
@@ -188,8 +202,8 @@ export default function NeedsManagementPage() {
                 <div className="needs-bulk-bar">
                   <span>{selected.size} selected</span>
                   <button className="needs-bulk-btn" onClick={bulkResolve}><CheckCircle2 size={14}/> Mark as Resolved</button>
-                  <button className="needs-bulk-btn"><Archive size={14}/> Export Selected</button>
-                  <button className="needs-bulk-btn"><UserPlus size={14}/> Assign to Volunteer</button>
+                  <button className="needs-bulk-btn" onClick={() => alert('Exporting selected needs to CSV...')}><Archive size={14}/> Export Selected</button>
+                  <button className="needs-bulk-btn" onClick={() => alert('Bulk assignment flow coming soon.')}><UserPlus size={14}/> Assign to Volunteer</button>
                 </div>
               )}
 
@@ -235,7 +249,7 @@ export default function NeedsManagementPage() {
                         <td onClick={e => e.stopPropagation()}>
                           <div className="needs-actions">
                             <button className="needs-action-btn" title="View" onClick={() => setDrawerNeed(n)}><Eye size={14}/></button>
-                            <button className="needs-action-btn" title="Assign"><UserPlus size={14}/></button>
+                            <button className="needs-action-btn" title="Assign" onClick={() => setAssignNeed(n)}><UserPlus size={14}/></button>
                             <button className="needs-action-btn needs-action-btn--resolve" title="Resolve" onClick={() => handleResolve(n.id)}><CheckCircle2 size={14}/></button>
                           </div>
                         </td>
@@ -264,10 +278,13 @@ export default function NeedsManagementPage() {
       </div>
 
       {/* Side Drawer */}
-      {drawerNeed && <NeedDetailDrawer need={drawerNeed} onClose={() => setDrawerNeed(null)} onResolve={handleResolve}/>}
+      {drawerNeed && <NeedDetailDrawer need={drawerNeed} onClose={() => setDrawerNeed(null)} onResolve={handleResolve} onEscalate={handleEscalate}/>}
 
       {/* Add Modal */}
       {showAddModal && <AddNeedModal onClose={() => setShowAddModal(false)} onSubmit={handleAddNeed}/>}
+
+      {/* Assign Modal */}
+      {assignNeed && <CreateAssignmentModal onClose={() => setAssignNeed(null)} defaultNeed={assignNeed}/>}
     </div>
   )
 }

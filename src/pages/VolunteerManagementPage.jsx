@@ -194,7 +194,7 @@ export default function VolunteerManagementPage() {
 
                       <div className="vol-card-actions">
                         <button className="vol-card-btn vol-card-btn--profile" onClick={() => navigate(`/volunteers/${vol.id}`)}>View Profile</button>
-                        <button className="vol-card-btn vol-card-btn--assign">Assign Now</button>
+                        <button className="vol-card-btn vol-card-btn--assign" onClick={() => alert('Assignment flow for this volunteer will open here.')}>Assign Now</button>
                       </div>
                     </div>
                   )

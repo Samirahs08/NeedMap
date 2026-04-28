@@ -57,19 +57,20 @@ export function parseUploadedText(rawText) {
       confidence: 0,
     }
 
-    if (providerScore > receiverScore && providerScore >= 2) {
+    if (providerScore > receiverScore && providerScore >= 2 && entry.name !== 'Unknown') {
       entry.confidence = Math.min(Math.round((providerScore / (providerScore + receiverScore)) * 100), 99)
       entry.detectedCategory = inferCategory(fullText, 'provider')
       results.providers.push(entry)
-    } else if (receiverScore > providerScore && receiverScore >= 2) {
+    } else if (receiverScore > providerScore && receiverScore >= 2 && entry.name !== 'Unknown') {
       entry.confidence = Math.min(Math.round((receiverScore / (providerScore + receiverScore)) * 100), 99)
       entry.detectedCategory = inferCategory(fullText, 'receiver')
       results.receivers.push(entry)
-    } else if (cells.length >= 2 && entry.name !== 'Unknown') {
+    } else if (cells.length >= 2 && entry.name !== 'Unknown' && (entry.phone || providerScore > 0 || receiverScore > 0)) {
       entry.confidence = 40
       entry.detectedCategory = 'Uncategorized'
       results.unknown.push(entry)
     }
+    // Ambiguous garbage entries without name or any hints are discarded
   }
 
   return results

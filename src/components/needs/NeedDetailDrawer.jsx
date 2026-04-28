@@ -3,7 +3,7 @@ import { X, MapPin, Calendar, Phone, MessageSquare, User, Clock, AlertTriangle, 
 const urgencyColor = (u) => u > 80 ? '#ef4444' : u > 50 ? '#f97316' : '#22c55e'
 const urgencyLabel = (u) => u > 80 ? 'CRITICAL' : u > 50 ? 'HIGH' : u > 25 ? 'MEDIUM' : 'LOW'
 
-export default function NeedDetailDrawer({ need, onClose, onResolve }) {
+export default function NeedDetailDrawer({ need, onClose, onResolve, onEscalate }) {
   if (!need) return null
 
   const breakdownBars = [
@@ -90,7 +90,7 @@ export default function NeedDetailDrawer({ need, onClose, onResolve }) {
               <div className="drawer-vol-bar">
                 <div style={{ width: `${(need.volunteersAssigned / need.volunteersNeeded) * 100}%`, background: 'var(--brand-gradient)', height: '100%', borderRadius: 4 }} />
               </div>
-              <button className="drawer-add-vol-btn"><UserPlus size={13} /> Add Volunteer</button>
+              <button className="drawer-add-vol-btn" onClick={() => alert('Add Volunteer modal coming soon.')}><UserPlus size={13} /> Add Volunteer</button>
             </div>
           </section>
 
@@ -114,8 +114,8 @@ export default function NeedDetailDrawer({ need, onClose, onResolve }) {
         {/* Actions */}
         <div className="drawer-footer">
           <button className="drawer-btn drawer-btn--resolve" onClick={() => onResolve(need.id)}>Mark Resolved</button>
-          <button className="drawer-btn drawer-btn--secondary">Reassign</button>
-          <button className="drawer-btn drawer-btn--danger">Escalate</button>
+          <button className="drawer-btn drawer-btn--secondary" onClick={() => alert('Reassign flow initiated...')}>Reassign</button>
+          <button className="drawer-btn drawer-btn--danger" onClick={() => onEscalate && onEscalate(need.id)}>Escalate</button>
           <button className="drawer-btn drawer-btn--ghost" onClick={onClose}>Close</button>
         </div>
       </div>

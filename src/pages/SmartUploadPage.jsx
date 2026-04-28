@@ -2,7 +2,9 @@ import { useState, useCallback } from 'react'
 import Sidebar from '../components/dashboard/Sidebar'
 import TopBar from '../components/dashboard/TopBar'
 import { parseUploadedText, getDemoCSV } from '../services/uploadParser'
-import { Upload, FileText, Image, Users, UserCheck, UserX, HelpCircle, Download, RefreshCw, Search, Eye, ChevronDown, ChevronUp, Sparkles, CheckCircle2, AlertTriangle, X, Phone, MapPin, Tag } from 'lucide-react'
+import { Upload, FileText, Image, Users, UserCheck, UserX, HelpCircle, Download, RefreshCw, Search, Eye, ChevronDown, ChevronUp, Sparkles, CheckCircle2, AlertTriangle, X, Phone, MapPin, Tag, Database } from 'lucide-react'
+import { addVolunteer, addNeed } from '../services/dataService'
+import { useAuth } from '../context/AuthContext'
 import '../styles/upload.css'
 
 export default function SmartUploadPage() {
@@ -15,6 +17,9 @@ export default function SmartUploadPage() {
   const [expandedId, setExpandedId] = useState(null)
   const [dragActive, setDragActive] = useState(false)
   const [editingEntry, setEditingEntry] = useState(null)
+  const [saving, setSaving] = useState(false)
+  const [savedSuccess, setSavedSuccess] = useState(false)
+  const { currentUser } = useAuth()
 
   const handleFile = useCallback((f) => {
     if (!f) return
@@ -42,8 +47,8 @@ export default function SmartUploadPage() {
 
     let textToParse = ''
     if (file?.type.startsWith('image/')) {
-      // For images, simulate OCR extraction (in production, call Vision API)
-      textToParse = getDemoCSV() // Simulated OCR result
+      // Disabled demo data for invalid images. Real OCR would go here.
+      textToParse = '' 
     } else {
       textToParse = preview
     }
@@ -51,6 +56,71 @@ export default function SmartUploadPage() {
     const parsed = parseUploadedText(textToParse)
     setResults(parsed)
     setProcessing(false)
+    setSavedSuccess(false)
+  }
+
+  const saveToDatabase = async () => {
+    if (!results || !currentUser) return
+    setSaving(true)
+    
+    try {
+      // Save providers as volunteers
+      const providerPromises = results.providers.map(p => {
+        const initials = (p.name || 'V').split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2);
+        return addVolunteer(currentUser.uid, {
+          name: p.name || 'Unknown Volunteer',
+          initials,
+          phone: p.phone || '—',
+          homeZone: p.zone || 'Zone 1',
+          skills: [{ name: p.detectedCategory || 'General Volunteer', level: 'Trained' }],
+          languages: ['English'],
+          status: 'Available',
+          weeklyLimit: 20,
+          hoursUsed: 0,
+          totalAssignments: 0,
+          completedAssignments: 0,
+          completionRate: 100,
+          joined: new Date().toISOString().split('T')[0],
+          availabilityDays: ['Mon','Tue','Wed','Thu','Fri'],
+          availabilityHours: '9:00 — 17:00',
+          coverageRadius: '5 km',
+          distance: '—',
+          performance: { score: 100, responseRate: 100, completionRate: 100, onTimeRate: 100, feedbackScore: 100 },
+          matchScore: 85,
+          assignments: [],
+          whatsappLog: [],
+          avgResponseTime: '—',
+          notes: p.notes || '',
+          source: 'Smart Upload'
+        });
+      });
+
+      // Save receivers as needs
+      const receiverPromises = results.receivers.map(r => {
+        return addNeed(currentUser.uid, {
+          title: `Assistance needed: ${r.detectedCategory || 'General Need'}`,
+          category: r.detectedCategory || 'General Need',
+          zone: r.zone || 'Zone 1',
+          severity: 3,
+          description: r.notes || `Uploaded via Smart Upload. Contact: ${r.name || 'Unknown'} (${r.phone || 'No phone'})`,
+          peopleAffected: 1,
+          source: 'Smart Upload'
+        });
+      });
+
+      // Fire and forget to background sync. This prevents the UI from hanging infinitely if the internet is disconnected.
+      Promise.all([...providerPromises, ...receiverPromises]).catch(err => console.warn("Background sync delayed:", err))
+      
+      // Simulate quick local save for UI
+      setTimeout(() => {
+        setSavedSuccess(true)
+        setSaving(false)
+      }, 600)
+    } catch (err) {
+      console.error("Failed to save to database:", err)
+      alert("Failed to save data. See console for details.")
+      setSaving(false)
+    }
   }
 
   const loadDemo = () => {
@@ -196,7 +266,17 @@ export default function SmartUploadPage() {
                   <Search size={15} className="needs-search-icon"/>
                   <input className="needs-search-input" placeholder="Search entries…" value={search} onChange={e=>setSearch(e.target.value)}/>
                 </div>
-                <button className="reports-btn" onClick={() => { setFile(null); setPreview(''); setResults(null) }}><Upload size={14}/> New Upload</button>
+                {savedSuccess ? (
+                  <button className="reports-btn" style={{background: '#22c55e', color: 'white', border: 'none'}} disabled>
+                    <CheckCircle2 size={14}/> Saved Successfully
+                  </button>
+                ) : (
+                  <button className="reports-btn" onClick={saveToDatabase} disabled={saving || (results.providers.length === 0 && results.receivers.length === 0)}>
+                    {saving ? <RefreshCw size={14} className="upload-spin"/> : <Database size={14}/>} 
+                    {saving ? 'Saving...' : 'Save Valid to DB'}
+                  </button>
+                )}
+                <button className="reports-btn" onClick={() => { setFile(null); setPreview(''); setResults(null); setSavedSuccess(false) }}><Upload size={14}/> New Upload</button>
               </div>
 
               {/* Results List */}

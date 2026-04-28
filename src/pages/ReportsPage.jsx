@@ -2,7 +2,7 @@ import { useState, useMemo, useEffect } from 'react'
 import Sidebar from '../components/dashboard/Sidebar'
 import TopBar from '../components/dashboard/TopBar'
 import { useAuth } from '../context/AuthContext'
-import { fetchNeeds, fetchVolunteers, categoriesList, zonesList } from '../services/dataService'
+import { fetchNeeds, fetchVolunteers, sendEmail, categoriesList, zonesList } from '../services/dataService'
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer, LineChart, Line, XAxis, YAxis, CartesianGrid, BarChart, Bar, Legend } from 'recharts'
 import { Download, Mail, FileText, Copy, Send, Clock, Check, Calendar, TrendingUp, Users, MapPin, Activity, Edit3, X, Loader2 } from 'lucide-react'
 import '../styles/reports.css'
@@ -96,7 +96,17 @@ export default function ReportsPage() {
   const displayDonorText = editDonor ? donorText : data.donorText(data.summary)
 
   const handleCopy = () => { navigator.clipboard?.writeText(displayDonorText); setCopied(true); setTimeout(() => setCopied(false), 2000) }
-  const handleSendEmail = () => { setEmailSent(true); setTimeout(() => { setEmailSent(false); setShowEmail(false); setEmailAddr('') }, 2200) }
+  
+  const handleSendEmail = async () => {
+    try {
+      await sendEmail(emailAddr, 'NeedMap Impact Report', displayDonorText);
+      setEmailSent(true); 
+      setTimeout(() => { setEmailSent(false); setShowEmail(false); setEmailAddr('') }, 2200)
+    } catch (err) {
+      console.error(err);
+      alert('Failed to send email. Ensure the Trigger Email extension is configured in Firebase.');
+    }
+  }
 
   const s = data.summary
 
@@ -111,7 +121,7 @@ export default function ReportsPage() {
           <div className="reports-header">
             <h1 className="needs-page-title">Reports & Analytics</h1>
             <div className="reports-header-actions">
-              <button className="reports-btn"><Download size={14}/> Download PDF</button>
+              <button className="reports-btn" onClick={() => alert('Downloading PDF...')}><Download size={14}/> Download PDF</button>
               <button className="reports-btn reports-btn--accent" onClick={() => setShowEmail(true)}><Mail size={14}/> Send to Donor</button>
             </div>
           </div>
@@ -302,19 +312,19 @@ export default function ReportsPage() {
               <Download size={20} style={{color:'#3b82f6'}}/>
               <h4>Download PDF Report</h4>
               <p>Formatted report with all charts and metrics</p>
-              <button className="reports-btn">Download PDF</button>
+              <button className="reports-btn" onClick={() => alert('Downloading PDF...')}>Download PDF</button>
             </div>
             <div className="reports-export-card">
               <FileText size={20} style={{color:'#22c55e'}}/>
               <h4>Export Raw Data (CSV)</h4>
               <p>Raw data for custom analysis</p>
-              <button className="reports-btn">Download CSV</button>
+              <button className="reports-btn" onClick={() => alert('Downloading CSV...')}>Download CSV</button>
             </div>
             <div className="reports-export-card">
               <Calendar size={20} style={{color:'#8b5cf6'}}/>
               <h4>Schedule Weekly Report</h4>
               <p>Auto-send reports every week</p>
-              <button className="reports-btn">Schedule</button>
+              <button className="reports-btn" onClick={() => alert('Scheduling report delivery...')}>Schedule</button>
             </div>
           </div>
         </div>

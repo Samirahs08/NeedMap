@@ -4,7 +4,7 @@ import TopBar from '../components/dashboard/TopBar'
 import AssignmentDetailModal from '../components/assignments/AssignmentDetailModal'
 import CreateAssignmentModal from '../components/assignments/CreateAssignmentModal'
 import { useAuth } from '../context/AuthContext'
-import { fetchAssignments } from '../services/dataService'
+import { fetchAssignments, updateAssignmentStatus } from '../services/dataService'
 import { Plus, Bell, CheckCircle2, MapPin, Clock, AlertTriangle, MoreVertical, GripVertical, User, Send, RefreshCw, Loader2, Info } from 'lucide-react'
 import '../styles/assignments.css'
 
@@ -14,7 +14,7 @@ const stageIcons = { notified: Bell, accepted: CheckCircle2, onsite: MapPin, com
 
 export default function AssignmentsPage() {
   const { currentUser } = useAuth()
-  const [board, setBoard] = useState({ notified:[], accepted:[], onsite:[], completed:[] })
+  const [board, setBoard] = useState({ notified:[], accepted:[], onsite:[], completed:[], escalated:[] })
   const [loading, setLoading] = useState(true)
   const [activeTab, setActiveTab] = useState('active')
   const [detailCard, setDetailCard] = useState(null)
@@ -27,7 +27,7 @@ export default function AssignmentsPage() {
     if (!currentUser) return
     setLoading(true)
     fetchAssignments(currentUser.uid).then(data => {
-      const grouped = { notified:[], accepted:[], onsite:[], completed:[] }
+      const grouped = { notified:[], accepted:[], onsite:[], completed:[], escalated:[] }
       data.forEach(a => {
         if (grouped[a.stage]) grouped[a.stage].push(a)
       })
@@ -38,29 +38,55 @@ export default function AssignmentsPage() {
 
   const handleDragStart = (card, fromStage) => { setDragCard(card); setDragFrom(fromStage) }
   const handleDragOver = (e) => e.preventDefault()
-  const handleDrop = (toStage) => {
+  const handleDrop = async (toStage) => {
     if (!dragCard || !dragFrom || dragFrom === toStage) { setDragCard(null); setDragFrom(null); return }
+    const originalDragFrom = dragFrom;
     setBoard(prev => {
       const newBoard = { ...prev }
-      newBoard[dragFrom] = prev[dragFrom].filter(c => c.id !== dragCard.id)
+      newBoard[originalDragFrom] = prev[originalDragFrom].filter(c => c.id !== dragCard.id)
       newBoard[toStage] = [{ ...dragCard, stage: toStage }, ...prev[toStage]]
       return newBoard
     })
+    
+    // Update in database
+    if (currentUser) {
+      try {
+        await updateAssignmentStatus(currentUser.uid, dragCard.id, toStage)
+      } catch (err) {
+        console.error("Failed to update status:", err)
+      }
+    }
+    
     setDragCard(null); setDragFrom(null)
   }
 
-  const handleAction = useCallback((action, card) => {
+  const handleAction = useCallback(async (action, card) => {
     setMenuOpen(null)
     if (action === 'view') setDetailCard(card)
-    if (action === 'complete') {
+    
+    if (action === 'complete' || action === 'escalate') {
+      const newStage = action === 'complete' ? 'completed' : 'escalated'
       setBoard(prev => {
         const newBoard = { ...prev }
         Object.keys(newBoard).forEach(k => { newBoard[k] = prev[k].filter(c => c.id !== card.id) })
-        newBoard.completed = [{ ...card, stage: 'completed', duration: '—' }, ...prev.completed]
+        if (newStage === 'escalated' && !newBoard.escalated) {
+           newBoard.escalated = []
+        }
+        if (newBoard[newStage]) {
+           newBoard[newStage] = [{ ...card, stage: newStage, duration: action === 'complete' ? '—' : undefined }, ...newBoard[newStage]]
+        }
         return newBoard
       })
+      
+      if (currentUser) {
+        try {
+          await updateAssignmentStatus(currentUser.uid, card.id, newStage)
+        } catch (err) {
+          console.error("Failed to update status:", err)
+        }
+      }
     }
-  }, [])
+  }, [currentUser])
 
   const columns = ['notified', 'accepted', 'onsite', 'completed']
   const totalActive = columns.reduce((s, c) => s + board[c].length, 0)
@@ -87,7 +113,7 @@ export default function AssignmentsPage() {
               Completed <span className="assign-tab-count">{board.completed.length}</span>
             </button>
             <button className={`assign-tab ${activeTab==='escalated'?'assign-tab--active assign-tab--esc':''}`} onClick={()=>setActiveTab('escalated')}>
-              Escalated <span className="assign-tab-count assign-tab-count--esc">0</span>
+              Escalated <span className="assign-tab-count assign-tab-count--esc">{board.escalated ? board.escalated.length : 0}</span>
             </button>
           </div>
 
@@ -172,16 +198,33 @@ export default function AssignmentsPage() {
 
           {/* ESCALATED */}
           {activeTab === 'escalated' && (
-            <div className="needs-empty-state">
-              <AlertTriangle size={48} style={{color:'rgba(255,255,255,0.3)', marginBottom:12}} />
-              <h3>No escalated assignments</h3>
-              <p>Assignments that require attention will appear here.</p>
-            </div>
+            board.escalated && board.escalated.length > 0 ? (
+              <div className="assign-completed-list">
+                {board.escalated.map(card => (
+                  <div key={card.id} className="assign-completed-row" onClick={() => setDetailCard(card)}>
+                    <div className="kanban-card-vol-avatar">{card.volInitials}</div>
+                    <div className="assign-completed-info">
+                      <p className="assign-completed-need">{card.need}</p>
+                      <p className="assign-completed-vol">{card.volunteer} · {card.zone}</p>
+                    </div>
+                    <span className="kanban-card-urgency" style={{background:`${urgencyColor(card.urgency)}18`,color:urgencyColor(card.urgency),borderColor:`${urgencyColor(card.urgency)}40`}}>{card.urgency}</span>
+                    <span className="assign-completed-time">{card.timeLabel}</span>
+                    <AlertTriangle size={16} style={{color:'#f59e0b'}}/>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="needs-empty-state">
+                <AlertTriangle size={48} style={{color:'rgba(255,255,255,0.3)', marginBottom:12}} />
+                <h3>No escalated assignments</h3>
+                <p>Assignments that require attention will appear here.</p>
+              </div>
+            )
           )}
         </div>
       </div>
 
-      {detailCard && <AssignmentDetailModal card={detailCard} onClose={() => setDetailCard(null)}/>}
+      {detailCard && <AssignmentDetailModal card={detailCard} onClose={() => setDetailCard(null)} onAction={(action) => { handleAction(action, detailCard); setDetailCard(null); }}/>}
       {showCreate && <CreateAssignmentModal onClose={() => setShowCreate(false)}/>}
     </div>
   )

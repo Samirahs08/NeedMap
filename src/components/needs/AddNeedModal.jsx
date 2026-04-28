@@ -13,7 +13,10 @@ export default function AddNeedModal({ onClose, onSubmit }) {
 
   const handleSubmit = (e) => {
     e.preventDefault()
-    if (!form.title || !form.category || !form.zone) return
+    if (!form.title || !form.category || !form.zone) {
+      alert("Please fill out the Need Title, Category, and Zone fields before submitting.")
+      return
+    }
     onSubmit({ ...form, peopleAffected: Number(form.peopleAffected) || 0, volunteersNeeded: Number(form.volunteersNeeded) || 2, severity: Number(form.severity) })
   }
 

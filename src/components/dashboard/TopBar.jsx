@@ -2,14 +2,7 @@ import { useState, useRef, useEffect } from 'react'
 import { Bell, ChevronDown, User, Settings, LogOut, Search, AlertTriangle, CheckCircle2, UserPlus, X, Clock } from 'lucide-react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '../../context/AuthContext'
-
-const notifications = [
-  { id: 1, type: 'critical', title: 'Medical emergency — Zone 7', desc: 'Urgency 92/100. No volunteer assigned yet.', time: '2 min ago', unread: true },
-  { id: 2, type: 'volunteer', title: 'Sneha Gupta accepted assignment', desc: 'Medical aid delivery in Zone 3.', time: '8 min ago', unread: true },
-  { id: 3, type: 'escalation', title: 'Volunteer requested HELP', desc: 'Arjun Mehta escalated assignment A-0012.', time: '15 min ago', unread: true },
-  { id: 4, type: 'resolved', title: 'Food distribution completed', desc: 'Ward 2 need resolved by Fatima Khan.', time: '1 hour ago', unread: false },
-  { id: 5, type: 'volunteer', title: 'New volunteer registered', desc: 'Deepak Joshi joined via WhatsApp.', time: '2 hours ago', unread: false },
-]
+import { fetchNeeds, fetchAssignments } from '../../services/dataService'
 
 const notifIcons = {
   critical: { icon: AlertTriangle, bg: 'rgba(239,68,68,0.12)', color: '#ef4444' },
@@ -23,7 +16,7 @@ export default function TopBar({ title = 'Dashboard' }) {
   const navigate = useNavigate()
   const [dropdownOpen, setDropdownOpen] = useState(false)
   const [notifOpen, setNotifOpen] = useState(false)
-  const [notifList, setNotifList] = useState(notifications)
+  const [notifList, setNotifList] = useState([])
   const dropdownRef = useRef(null)
   const notifRef = useRef(null)
 
@@ -53,6 +46,37 @@ export default function TopBar({ title = 'Dashboard' }) {
     document.addEventListener('mousedown', handleClick)
     return () => document.removeEventListener('mousedown', handleClick)
   }, [])
+
+  useEffect(() => {
+    if (!currentUser) return
+    Promise.all([fetchNeeds(currentUser.uid), fetchAssignments(currentUser.uid)])
+      .then(([n, a]) => {
+        const generatedNotifs = []
+        let nid = 1
+        
+        // Critical needs
+        n.filter(need => need.urgency > 80 && need.status !== 'Resolved').slice(0, 3).forEach(need => {
+          generatedNotifs.push({ id: nid++, type: 'critical', title: need.title, desc: `Urgency ${need.urgency}/100. Zone: ${need.zone}`, time: 'Just now', unread: true })
+        })
+        
+        // Escalated assignments
+        a.filter(assign => assign.stage === 'escalated').slice(0, 2).forEach(assign => {
+          generatedNotifs.push({ id: nid++, type: 'escalation', title: 'Assignment Escalated', desc: `${assign.volunteer} escalated task in ${assign.zone}.`, time: 'Recently', unread: true })
+        })
+
+        // Completed assignments
+        a.filter(assign => assign.stage === 'completed').slice(0, 2).forEach(assign => {
+          generatedNotifs.push({ id: nid++, type: 'resolved', title: 'Task Completed', desc: `${assign.need} resolved by ${assign.volunteer}.`, time: assign.duration || 'Recently', unread: false })
+        })
+
+        if (generatedNotifs.length === 0) {
+           generatedNotifs.push({ id: nid++, type: 'resolved', title: 'All clear', desc: 'No urgent notifications at this time.', time: 'Now', unread: false })
+        }
+
+        setNotifList(generatedNotifs)
+      })
+      .catch(console.error)
+  }, [currentUser])
 
   const markAllRead = () => {
     setNotifList(prev => prev.map(n => ({ ...n, unread: false })))

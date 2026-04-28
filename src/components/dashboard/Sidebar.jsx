@@ -49,7 +49,7 @@ export default function Sidebar() {
           <div className="sidebar-help-icon">?</div>
           <p className="sidebar-help-title">Need Help?</p>
           <p className="sidebar-help-text">Contact support or view docs</p>
-          <button className="sidebar-help-btn">Get Help</button>
+          <button className="sidebar-help-btn" onClick={() => window.open('mailto:support@needmap.org')}>Get Help</button>
         </div>
       </div>
     </aside>

@@ -5,10 +5,10 @@ import { fetchNeeds, fetchVolunteers, addAssignment } from '../../services/dataS
 
 const urgencyColor = u => u > 80 ? '#ef4444' : u > 50 ? '#f97316' : '#22c55e'
 
-export default function CreateAssignmentModal({ onClose }) {
+export default function CreateAssignmentModal({ onClose, defaultNeed }) {
   const { currentUser } = useAuth()
-  const [step, setStep] = useState(1)
-  const [selectedNeed, setSelectedNeed] = useState(null)
+  const [step, setStep] = useState(defaultNeed ? 2 : 1)
+  const [selectedNeed, setSelectedNeed] = useState(defaultNeed || null)
   const [selectedVol, setSelectedVol] = useState(null)
   const [note, setNote] = useState('')
   const [toast, setToast] = useState('')
@@ -144,7 +144,7 @@ export default function CreateAssignmentModal({ onClose }) {
                 ))}
               </div>
               <div className="create-nav">
-                <button className="drawer-btn drawer-btn--ghost" onClick={()=>setStep(1)}>Back</button>
+                {!defaultNeed && <button className="drawer-btn drawer-btn--ghost" onClick={()=>setStep(1)}>Back</button>}
                 <button className="needs-add-btn" disabled={!selectedVol} onClick={()=>setStep(3)}>Next <ArrowRight size={14}/></button>
               </div>
             </div>

@@ -287,6 +287,28 @@ export async function addAssignment(uid, assignData) {
   return { id: docRef.id, ...assignData, isDemo: false };
 }
 
+// ─── Update an assignment's stage ──────────────────────────────────────
+export async function updateAssignmentStatus(uid, assignId, stage) {
+  const docRef = doc(db, 'users', uid, 'assignments', assignId);
+  await updateDoc(docRef, { stage });
+}
+
+// ─── Trigger Email (Firebase Extension) ───────────────────────────────
+export async function sendEmail(toEmails, subject, textContent) {
+  const mailCol = collection(db, 'mail');
+  // toEmails can be a comma-separated string, we convert it to an array
+  const toArray = toEmails.split(',').map(e => e.trim()).filter(e => e);
+  
+  await addDoc(mailCol, {
+    to: toArray,
+    message: {
+      subject: subject,
+      text: textContent,
+      html: `<h2>NeedMap Impact Report</h2><p>${textContent.replace(/\n/g, '<br/>')}</p>`
+    }
+  });
+}
+
 // ─── Compute dashboard metrics from live data ─────────────────────────
 export function computeMetrics(needs, volunteers, assignments) {
   const activeNeeds = needs.filter(n => n.status !== 'Resolved').length;

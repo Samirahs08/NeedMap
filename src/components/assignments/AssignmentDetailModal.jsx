@@ -2,7 +2,7 @@ import { X, MapPin, Clock, User, Send, CheckCircle2, AlertTriangle, MessageCircl
 
 const urgencyColor = u => u === 'CRITICAL' ? '#ef4444' : u === 'HIGH' ? '#f97316' : '#3b82f6'
 
-export default function AssignmentDetailModal({ card, onClose }) {
+export default function AssignmentDetailModal({ card, onClose, onAction }) {
   if (!card) return null
 
   const timeline = [
@@ -87,9 +87,9 @@ export default function AssignmentDetailModal({ card, onClose }) {
         </div>
 
         <div className="drawer-footer">
-          {card.stage !== 'completed' && <button className="drawer-btn drawer-btn--resolve"><CheckCircle2 size={13}/> Mark Complete</button>}
-          <button className="drawer-btn drawer-btn--secondary">Reassign</button>
-          <button className="drawer-btn drawer-btn--danger">Escalate</button>
+          {card.stage !== 'completed' && <button className="drawer-btn drawer-btn--resolve" onClick={() => onAction && onAction('complete')}><CheckCircle2 size={13}/> Mark Complete</button>}
+          <button className="drawer-btn drawer-btn--secondary" onClick={() => alert('Reassign flow initiated...')}>Reassign</button>
+          <button className="drawer-btn drawer-btn--danger" onClick={() => onAction && onAction('escalate')}>Escalate</button>
           <button className="drawer-btn drawer-btn--ghost" onClick={onClose}>Close</button>
         </div>
       </div>

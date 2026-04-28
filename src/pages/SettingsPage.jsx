@@ -190,7 +190,7 @@ export default function SettingsPage() {
                       <div className="settings-toggle-info">
                         <p>Enable 2FA</p><span>Add an extra layer of security to your account</span>
                       </div>
-                      <button className="reports-btn"><Shield size={13}/> Setup 2FA</button>
+                      <button className="reports-btn" onClick={() => alert('2FA Setup coming soon.')}><Shield size={13}/> Setup 2FA</button>
                     </div>
                   </div>
                 </div>
@@ -258,7 +258,7 @@ export default function SettingsPage() {
                           <p className="settings-data-title">{d.title}</p>
                           <span className="settings-data-desc">{d.desc}</span>
                         </div>
-                        <button className="reports-btn">{d.btn}</button>
+                        <button className="reports-btn" onClick={() => alert(`${d.btn} initiated...`)}>{d.btn}</button>
                       </div>
                     ))}
                   </div>
